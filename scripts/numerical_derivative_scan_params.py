@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import sympy as sp
 from sympy.physics.units import hbar
 
@@ -29,8 +30,8 @@ from three_variable.symbols import (
     zeta,
 )
 
-Re_xi = sp.Symbol("Re_xi")
-Im_xi = sp.Symbol("Im_xi")
+Re_xi = sp.Symbol("Re_xi", real=True)
+Im_xi = sp.Symbol("Im_xi", real=True)
 
 
 def get_numerical_derivatives(
@@ -146,23 +147,31 @@ zeta_derivative = expr_system + expr_environment
 
 
 # Substitute physical parameters for numerical evaluation
-eta_lambda_value = 1
-eta_m_value = 1
-eta_omega_value = 1
-hbar_value = 1e-3
-KBT_value = 1e-3
+eta_lambda_value = 1e7
+eta_m_value = 1e7
+eta_omega_value = 0.25
+hbar_value = 1
+KBT_value = 1
 
-# eta_lambda_value = ELENA_NA_CU.eta_parameters.eta_lambda
-# eta_m_value = ELENA_NA_CU.eta_parameters.eta_m
-# eta_omega_value = ELENA_NA_CU.eta_parameters.eta_omega
-# KBT_value = 1.59e-21
-# hbar_value = 1.0545718e-34
-
+# test the derivatives
+zeta_eq, alpha_derivative_num, dxdt_num, dpdt_num = get_numerical_derivatives(
+    alpha_derivative,
+    zeta_derivative,
+    eta_lambda_value,
+    eta_m_value,
+    eta_omega_value,
+    KBT_value,
+    hbar_value,
+)
+print("Test numerical derivatives:")
+sp.print_latex(dxdt_num)
+sp.print_latex(dpdt_num)
+input()
 
 # iterate over values of eta_lambda in log space
-eta_lambda_values = np.logspace(6, 6, num=1)
+eta_lambda_values = np.logspace(-5, 6, num=12)
 eta_omega_values = np.logspace(1, 1, num=1)
-eta_m_values = np.logspace(1, 1, num=1)
+eta_m_values = np.logspace(5, 5, num=1)
 results = []
 
 for eta_lambda_value in eta_lambda_values:
@@ -171,7 +180,7 @@ for eta_lambda_value in eta_lambda_values:
             # get numerical derivatives
             (
                 zeta_eq,
-                alpha_derivative,
+                alpha_derivative_num,
                 dxdt_num,
                 dpdt_num,
             ) = get_numerical_derivatives(
@@ -185,19 +194,29 @@ for eta_lambda_value in eta_lambda_values:
             )
             # Extract coefficients
             result = {
-                "eta_lambda": eta_lambda,
-                "eta_m": eta_m,
-                "eta_omega": eta_omega,
-                "zeta_eq": zeta_eq,
-                "dxdt_coeff_x": dxdt_num.coeff(x),
-                "dxdt_coeff_p": dxdt_num.coeff(p),
-                "dxdt_coeff_Re_xi": dxdt_num.coeff(Re_xi),
-                "dxdt_coeff_Im_xi": dxdt_num.coeff(Im_xi),
-                "dpdt_coeff_x": dpdt_num.coeff(x),
-                "dpdt_coeff_p": dpdt_num.coeff(p),
-                "dpdt_coeff_Re_xi": dpdt_num.coeff(Re_xi),
-                "dpdt_coeff_Im_xi": dpdt_num.coeff(Im_xi),
+                "eta_lambda": eta_lambda_value,
+                "eta_m": eta_m_value,
+                "eta_omega": eta_omega_value,
+                "zeta_eq": complex(zeta_eq.evalf(subs={sp.I: 1j})),
+                "dxdt_coeff_x": complex(dxdt_num.coeff(x).evalf(subs={sp.I: 1j})),
+                "dxdt_coeff_p": complex(dxdt_num.coeff(p).evalf(subs={sp.I: 1j})),
+                "dxdt_coeff_Re_xi": complex(
+                    dxdt_num.coeff(Re_xi).evalf(subs={sp.I: 1j})
+                ),
+                "dxdt_coeff_Im_xi": complex(
+                    dxdt_num.coeff(Im_xi).evalf(subs={sp.I: 1j})
+                ),
+                "dpdt_coeff_x": complex(dpdt_num.coeff(x).evalf(subs={sp.I: 1j})),
+                "dpdt_coeff_p": complex(dpdt_num.coeff(p).evalf(subs={sp.I: 1j})),
+                "dpdt_coeff_Re_xi": complex(
+                    dpdt_num.coeff(Re_xi).evalf(subs={sp.I: 1j})
+                ),
+                "dpdt_coeff_Im_xi": complex(
+                    dpdt_num.coeff(Im_xi).evalf(subs={sp.I: 1j})
+                ),
             }
             results.append(result)
 
-print(results)
+# save results to a file
+result_df = pd.DataFrame(results)
+result_df.to_csv("numerical_derivative_scan_params.csv", index=False)

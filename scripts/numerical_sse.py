@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+
 import matplotlib.pyplot as plt
 import numpy as np
 import sdeint
@@ -9,7 +11,9 @@ from sympy.physics.units import hbar
 from three_variable.coherent_states import (
     action_from_expr,
     extract_action,
+    xp_expression_from_alpha,
 )
+from three_variable.equilibrium_squeeze import get_equilibrium_squeeze_ratio
 from three_variable.projected_sse import (
     get_diffusion_term,
     get_environment_derivative,
@@ -28,61 +32,19 @@ from three_variable.symbols import (
     zeta,
 )
 
-
-def get_numerical_derivatives(
-    alpha_derivative: sp.Expr,
-    zeta_derivative: sp.Expr,
-    eta_lambda_value: float,
-    eta_m_value: float,
-    eta_omega_value: float,
-    KBT_value: float,
-    hbar_value: float,
-) -> tuple[sp.Expr, sp.Expr]:
-    """Get numerical time derivatives for the alpha, x, and p at equilibrium zeta."""
-    alpha_derivative = alpha_derivative.subs(
-        {
-            sp.Symbol("V_1"): 0,
-            eta_lambda: eta_lambda_value,
-            eta_m: eta_m_value,
-            eta_omega: eta_omega_value,
-            KBT: KBT_value,
-            hbar: hbar_value,
-        }
-    )
-    zeta_derivative = zeta_derivative.subs(
-        {
-            sp.Symbol("V_1"): 0,
-            eta_lambda: eta_lambda_value,
-            eta_m: eta_m_value,
-            eta_omega: eta_omega_value,
-            KBT: KBT_value,
-            hbar: hbar_value,
-        }
-    )
-    # get equilibrium zeta
-    zeta_eq = sp.solve(zeta_derivative, zeta)[0]
-
-    # plug in equilibrium zeta into alpha derivative and diffusion
-    alpha_derivative_numerical = sp.expand(alpha_derivative.subs(zeta, zeta_eq))
-    alpha_derivative_numerical = sp.collect(
-        alpha_derivative_numerical.evalf(), [alpha, sp.conjugate(alpha)]
-    )
-    return zeta_eq, alpha_derivative_numerical
-
-
 t = sp.Symbol("t", real=True)
+Re_xi = sp.Symbol("Re_xi", real=True)
+Im_xi = sp.Symbol("Im_xi", real=True)
+
+equilibrium_ratio = get_equilibrium_squeeze_ratio()
+low_friction = equilibrium_ratio.lseries(eta_lambda, sp.oo)  # type: ignore sp
+R_expr = sum(sp.simplify(e) for e in itertools.islice(low_friction, 1))  # type: ignore sp
 
 PHYSICAL_PARAMS = [
     ("H Ru", TOWNSEND_H_RU.eta_parameters, "C3"),
     ("Li Cu", ELENA_LI_CU.eta_parameters, "C1"),
     ("Na Cu", ELENA_NA_CU.eta_parameters, "C2"),
 ]
-
-# print("Physical parameters:")
-# for name, params, color in PHYSICAL_PARAMS:
-#     print(f"{name}: {params}")
-#     print(f"Color: {color}")
-# input()
 
 alpha_derivative_deterministic = get_full_derivative("alpha")
 
@@ -103,46 +65,87 @@ expr_environment = get_environment_derivative("zeta")
 zeta_derivative = expr_system + expr_environment
 
 
-# # print the symbolic expressions
-# print("Alpha derivative (deterministic):")
-# sp.print_latex(alpha_derivative_deterministic)
-# # sp.print_latex(sp.limit(alpha_derivative_deterministic, zeta, -1))
-# print("Alpha derivative (diffusion):")
-# sp.print_latex(alpha_derivative_diffusion * noise)
-# print("Zeta derivative:")
-# sp.print_latex(zeta_derivative)
+def get_x_p_derivatives(alpha_derivative: sp.Expr) -> tuple[sp.Expr, sp.Expr]:
+    """Calculate the derivatives dx/dt and dp/dt from the alpha derivative and equilibrium squeeze ratio,
+    and express in (x,p) basis.
+    """
+    alpha_derivative_conj = sp.conjugate(alpha_derivative)
+    a_expec_derivative = (alpha_derivative + alpha_derivative_conj * zeta) / (
+        1 - zeta * sp.conjugate(zeta)
+    )
+    a_dagger_expec_derivative = (
+        alpha_derivative_conj + alpha_derivative * sp.conjugate(zeta)
+    ) / (1 - zeta * sp.conjugate(zeta))
+    dxdt = (a_expec_derivative + a_dagger_expec_derivative) / sp.sqrt(2)
+    dpdt = 1j * hbar * (-a_expec_derivative + a_dagger_expec_derivative) / sp.sqrt(2)
+    dxdt = sp.simplify(
+        xp_expression_from_alpha(dxdt).subs(
+            {
+                zeta: (1 - R_expr) / (1 + R_expr),
+                sp.Symbol("V_1"): 0,
+                noise: Re_xi + 1j * Im_xi,
+                sp.conjugate(noise): Re_xi - 1j * Im_xi,
+            }
+        )
+    )
+    dpdt = sp.simplify(
+        xp_expression_from_alpha(dpdt).subs(
+            {
+                zeta: (1 - R_expr) / (1 + R_expr),
+                sp.Symbol("V_1"): 0,
+                noise: Re_xi + 1j * Im_xi,
+                sp.conjugate(noise): Re_xi - 1j * Im_xi,
+            }
+        )
+    )
+    return dxdt, dpdt
 
-# input()
 
+dxdt, dpdt = get_x_p_derivatives(alpha_derivative_diffusion)
+
+print("Alpha derivative (deterministic, real part):")
+sp.print_latex(dxdt)
+print("Alpha derivative (deterministic, imaginary part):")
+sp.print_latex(dpdt)
+
+input()
 # Substitute physical parameters for numerical evaluation
 eta_lambda_value = 0.01
-eta_m_value = 1e5
+eta_m_value = 1
 eta_omega_value = 1
 hbar_value = 1
 KBT_value = 1
 
-# eta_lambda_value = ELENA_NA_CU.eta_parameters.eta_lambda
-# eta_m_value = ELENA_NA_CU.eta_parameters.eta_m
-# eta_omega_value = ELENA_NA_CU.eta_parameters.eta_omega
-# KBT_value = 1.59e-21
-# hbar_value = 1.0545718e-34
-
-# get numerical derivatives
-zeta_eq_numerical, alpha_derivative_numerical = get_numerical_derivatives(
-    alpha_derivative,
-    zeta_derivative,
-    eta_lambda_value,
-    eta_m_value,
-    eta_omega_value,
-    KBT_value,
-    hbar_value,
+alpha_derivative_deterministic = alpha_derivative_deterministic.subs(
+    {
+        sp.Symbol("V_1"): 0,
+        eta_lambda: eta_lambda_value,
+        eta_m: eta_m_value,
+        eta_omega: eta_omega_value,
+        KBT: KBT_value,
+        hbar: hbar_value,
+    }
 )
-
-print("Equilibrium zeta:", zeta_eq_numerical)
-print("Alpha derivative at equilibrium zeta:")
-sp.print_latex(alpha_derivative_numerical)
-
-input()
+zeta_derivative = zeta_derivative.subs(
+    {
+        sp.Symbol("V_1"): 0,
+        eta_lambda: eta_lambda_value,
+        eta_m: eta_m_value,
+        eta_omega: eta_omega_value,
+        KBT: KBT_value,
+        hbar: hbar_value,
+    }
+)
+alpha_derivative_diffusion = alpha_derivative_diffusion.subs(
+    {
+        sp.Symbol("V_1"): 0,
+        eta_lambda: eta_lambda_value,
+        eta_m: eta_m_value,
+        eta_omega: eta_omega_value,
+        KBT: KBT_value,
+        hbar: hbar_value,
+    }
+)
 
 # dX = F dt + G dW
 # Lambdify to get NumPy-compatible functions
@@ -165,7 +168,7 @@ def G(y, t):
 
 # 6. Initial values and time vector
 y0 = np.array([1.0 + 0.0j, -2 / 3 + 0.0j])  # alpha and zeta
-ts = np.linspace(0, 5, int(eta_m_value * 1000))
+ts = np.linspace(0, 2, int(eta_m_value * 10000))
 
 print("Starting simulation")
 # 7. Solve using Itô interpretation

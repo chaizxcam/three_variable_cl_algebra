@@ -18,6 +18,7 @@ dependencies = [
     "slate_core[plot] @ git+https://github.com/Matt-Ord/slate.git@b4744c9f981619ae7a21b526a43159d5c6527539",
     "slate_quantum[plot,qutip] @ git+https://github.com/Matt-Ord/slate_quantum.git@1011c95f42e32e5edd48f801986be6e98df739df",
     "sdeint>=0.3.0",
+    "pandas>=2.3.0",
 ]
 
 [project.optional-dependencies]
