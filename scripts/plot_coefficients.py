@@ -7,6 +7,10 @@ import pandas as pd
 coeffs = pd.read_csv("numerical_derivative_scan_params.csv")
 coeffs = coeffs.map(lambda x: complex(x) if isinstance(x, str) and "j" in x else x)
 
+coeffs["lambda_eff_factor"] = (
+    coeffs["dpdt_coeff_p"].apply(np.real) * coeffs["eta_lambda"]
+)
+
 
 # Plot the coefficients of dx/dt and dp/dt against eta_lambda
 def plot_coefficients(
@@ -47,16 +51,75 @@ def plot_coefficients(
     plt.close(fig_imag)
 
 
-# Plot noise coefficients for dx/dt
-plot_coefficients(
-    coeffs,
-    "eta_lambda",
-    ["dxdt_coeff_x", "dxdt_coeff_p"],
-)
+def plot_2d_real_imag_heatmaps(
+    coeffs: pd.DataFrame,
+    param_x: str,
+    param_y: str,
+    value_col: str,
+    log_scale: bool = True,
+) -> None:
+    # Sort and prepare grid
+    x_vals = np.sort(coeffs[param_x].unique())
+    y_vals = np.sort(coeffs[param_y].unique())
+    X, Y = np.meshgrid(x_vals, y_vals)
 
-# Plot noise coefficients for dp/dt
-plot_coefficients(
-    coeffs,
-    "eta_lambda",
-    ["dpdt_coeff_x", "dpdt_coeff_p"],
+    # Real part
+    real_pivot = coeffs.pivot(index=param_y, columns=param_x, values=value_col).apply(
+        np.real
+    )
+    Z_real = real_pivot.values.astype(float)
+
+    # Imaginary part
+    imag_pivot = coeffs.pivot(index=param_y, columns=param_x, values=value_col).apply(
+        np.imag
+    )
+    Z_imag = imag_pivot.values.astype(float)
+
+    # --- Plot real part ---
+    plt.figure(figsize=(8, 6))
+    real_plot = plt.pcolormesh(X, Y, Z_real, shading="auto", cmap="viridis")
+    if log_scale:
+        plt.xscale("log")
+        plt.yscale("log")
+    plt.colorbar(real_plot, label=f"Re({value_col})")
+    plt.xlabel(param_x)
+    plt.ylabel(param_y)
+    plt.xlim(x_vals.min(), x_vals.max())
+    plt.ylim(y_vals.min(), y_vals.max())
+    plt.title(f"Real part of {value_col}")
+    plt.tight_layout()
+    plt.savefig(f"heatmap_Re_{value_col}_vs_{param_x}_and_{param_y}.png", dpi=300)
+
+    # --- Plot imaginary part ---
+    plt.figure(figsize=(8, 6))
+    imag_plot = plt.pcolormesh(X, Y, Z_imag, shading="auto", cmap="plasma")
+    if log_scale:
+        plt.xscale("log")
+        plt.yscale("log")
+    plt.colorbar(imag_plot, label=f"Im({value_col})")
+    plt.xlabel(param_x)
+    plt.ylabel(param_y)
+    plt.xlim(x_vals.min(), x_vals.max())
+    plt.ylim(y_vals.min(), y_vals.max())
+    plt.title(f"Imaginary part of {value_col}")
+    plt.tight_layout()
+    plt.savefig(f"heatmap_Im_{value_col}_vs_{param_x}_and_{param_y}.png", dpi=300)
+    plt.show()
+
+
+plot_2d_real_imag_heatmaps(
+    coeffs=coeffs, param_x="eta_omega", param_y="eta_m", value_col="lambda_eff_factor"
 )
+# # Plot noise coefficients for dx/dt
+# plot_coefficients(
+#     coeffs,
+#     "eta_lambda",
+#     ["dxdt_coeff_x", "dxdt_coeff_p"],
+# )
+
+# # Plot noise coefficients for dp/dt
+# plot_coefficients(
+#     coeffs,
+#     "eta_lambda",
+#     ["dpdt_coeff_x", "dpdt_coeff_p"],
+# )

@@ -147,31 +147,31 @@ zeta_derivative = expr_system + expr_environment
 
 
 # Substitute physical parameters for numerical evaluation
-eta_lambda_value = 1e7
+eta_lambda_value = 1e5
 eta_m_value = 1e7
 eta_omega_value = 0.25
 hbar_value = 1
 KBT_value = 1
 
-# test the derivatives
-zeta_eq, alpha_derivative_num, dxdt_num, dpdt_num = get_numerical_derivatives(
-    alpha_derivative,
-    zeta_derivative,
-    eta_lambda_value,
-    eta_m_value,
-    eta_omega_value,
-    KBT_value,
-    hbar_value,
-)
-print("Test numerical derivatives:")
-sp.print_latex(dxdt_num)
-sp.print_latex(dpdt_num)
-input()
+# # test the derivatives
+# zeta_eq, alpha_derivative_num, dxdt_num, dpdt_num = get_numerical_derivatives(
+#     alpha_derivative,
+#     zeta_derivative,
+#     eta_lambda_value,
+#     eta_m_value,
+#     eta_omega_value,
+#     KBT_value,
+#     hbar_value,
+# )
+# print("Test numerical derivatives:")
+# sp.print_latex(dxdt_num)
+# sp.print_latex(dpdt_num)
+# input()
 
 # iterate over values of eta_lambda in log space
-eta_lambda_values = np.logspace(-5, 6, num=12)
-eta_omega_values = np.logspace(1, 1, num=1)
-eta_m_values = np.logspace(5, 5, num=1)
+eta_lambda_values = np.logspace(6, 6, num=1)
+eta_omega_values = np.logspace(1, 10, num=10)
+eta_m_values = np.logspace(-10, 0, num=11)
 results = []
 
 for eta_lambda_value in eta_lambda_values:

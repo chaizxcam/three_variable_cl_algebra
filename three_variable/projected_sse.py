@@ -116,9 +116,7 @@ def get_system_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
 @timed
 def get_environment_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
     drift_term = get_drift_term()
-    diffusion_term = 0  # get_diffusion_term()
-    expr = drift_term + diffusion_term
-    environment_derivative = sp.factor(extract_action(action_from_expr(expr), ty))
+    environment_derivative = sp.factor(extract_action(action_from_expr(drift_term), ty))
 
     shift_expr = (-1j / hbar) * get_hamiltonian_shift_term()
     shift_derivative = sp.factor(extract_action(action_from_expr(shift_expr), ty))
@@ -129,9 +127,26 @@ def get_environment_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
     )
 
 
-@cache
-@timed
-def get_full_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
+def get_deterministic_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
     system_derivative = get_system_derivative(ty)
     environment_derivative = get_environment_derivative(ty)
     return system_derivative + environment_derivative
+
+
+@cache
+@timed
+def get_stochastic_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
+    expr = get_diffusion_term()
+
+    return sp.simplify(
+        dimensionless_from_full(sp.factor(extract_action(action_from_expr(expr), ty))),
+        rational=True,
+    )
+
+
+@cache
+@timed
+def get_full_derivative(ty: Literal["zeta", "alpha", "phi"]) -> sp.Expr:
+    deterministic_derivative = get_deterministic_derivative(ty)
+    stochastic_derivative = get_stochastic_derivative(ty)
+    return deterministic_derivative + stochastic_derivative

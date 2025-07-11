@@ -3,9 +3,15 @@ from __future__ import annotations
 import sympy as sp
 
 from three_variable.symbols import (
+    a_dagger_expr,
+    a_expr,
     zeta,
 )
 
+# analyze transformed ladder operators
+A = (
+    1 / sqrt(1 - zeta * sp.conjugate(zeta)) * (a_expr + zeta * a_dagger_expr)
+)  # transformed ladder operator A
 # define the constants
 s = sp.Symbol("s", real=True)  # sin
 c = sp.Symbol("c", real=True)  # cos
